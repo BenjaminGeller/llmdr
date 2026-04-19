@@ -1,0 +1,15 @@
+[project]
+name = "llmdr"
+version = "0.0.1"
+description = "LLM Detection and Response — tamper-evident audit trails for LLM traffic"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{name = "Benjamin Geller"}]
+license = {text = "MIT"}
+
+[project.urls]
+Homepage = "https://github.com/BenjaminGeller/llmdr"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
