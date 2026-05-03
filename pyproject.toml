@@ -1,11 +1,28 @@
 [project]
 name = "llmdr"
 version = "0.0.1"
-description = "LLM Detection and Response — tamper-evident audit trails for LLM traffic"
+description = "LLM Detection and Response, tamper-evident audit trails for LLM traffic"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "Benjamin Geller"}]
 license = {text = "MIT"}
+dependencies = [
+    "cryptography~=47.0",
+    "fastapi~=0.136.0",
+    "httpx~=0.28.0",
+    "typer~=0.25.0",
+    "jinja2~=3.1",
+    "detect-secrets~=1.5",
+]
+
+[project.optional-dependencies]
+detection = [
+    "presidio-analyzer~=2.2",
+]
+dev = [
+    "pytest~=9.0",
+    "pytest-asyncio~=1.3",
+]
 
 [project.urls]
 Homepage = "https://github.com/BenjaminGeller/llmdr"

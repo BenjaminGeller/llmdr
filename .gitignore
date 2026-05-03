@@ -201,6 +201,11 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Claude Code
+#  Local Claude Code settings, agent state, and per-project configuration.
+#  Should not be shared across contributors.
+.claude/
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
