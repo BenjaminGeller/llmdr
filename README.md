@@ -93,6 +93,14 @@ llmdr show --last 10 --justification "reviewing imported conversation" --analyst
 
 `show` prints metadata only by default; add `--full` to include decrypted content.
 
+5. Generate the HTML investigator report: chain verification badge, summary statistics, detection hits, and a record timeline in one self-contained file.
+
+```
+llmdr report --out report.html --justification "case 42 review" --analyst-id alice
+```
+
+The report omits message content by default. Add `--include-content` to embed decrypted content with PII hits highlighted; the command warns that the file then holds plaintext outside the encrypted store.
+
 ### With the live proxy
 
 The proxy captures real traffic as it happens. It needs a real Anthropic API key, which your client continues to supply; llmdr forwards it upstream unchanged.
@@ -139,7 +147,7 @@ Prompt and response content and per-record metadata are encrypted with Fernet be
 
 ### Watching the watchers
 
-Reads are not free. Every `show` and every `verify` writes an entry to a separate, independently hash-chained `access_log` table: who read (analyst id), when, with what filters, and a required business justification. There is no bypass. The justification is never read from the environment; it must be supplied at the point of each read.
+Reads are not free. Every `show`, `verify`, and `report` writes an entry to a separate, independently hash-chained `access_log` table: who read (analyst id), when, with what filters, and a required business justification. There is no bypass. The justification is never read from the environment; it must be supplied at the point of each read.
 
 ### The forensic contract
 
@@ -153,7 +161,9 @@ What llmdr does today:
 - Import of Claude conversation exports into the same record format.
 - Hash-chained, Fernet-encrypted SQLite audit store.
 - Independently hash-chained access log for every read.
-- `keygen`, `serve`, `verify`, `show`, and `import` commands.
+- Credential detection (detect-secrets) on every captured record, and PII detection (Microsoft Presidio) when installed with `pip install llmdr[detection]` plus a spaCy English model. Hits record type and location, never the matched text, and llmdr never downloads models on its own.
+- Self-contained HTML investigator report with chain badge, statistics, detection hits, and timeline.
+- `keygen`, `serve`, `verify`, `show`, `import`, and `report` commands.
 
 What llmdr does not do (by design or not yet):
 
@@ -161,8 +171,7 @@ What llmdr does not do (by design or not yet):
 - No streaming. `stream=true` is rejected in v0.1.
 - API traffic only. llmdr audits Claude usage routed through the proxy. It does not capture consumer web (claude.ai), desktop, or mobile app use of Claude; those clients talk to Anthropic directly over TLS and never pass through the proxy. The enterprise pattern is to block those consumer paths and route sanctioned use through the audited API.
 - A single Anthropic endpoint only. The proxy currently targets the Anthropic Messages API directly, with OpenAI support planned for v0.2. The aim is to audit a controlled set of sanctioned tools (Claude, then OpenAI), not open-ended multi-provider support.
-- PII and secret detection (Microsoft Presidio and detect-secrets) is planned and not yet implemented. Records currently carry a `skipped` detection status.
-- The Jinja2 HTML investigator report is planned and not yet implemented.
+- Detection is observational only. Hits are recorded in encrypted metadata and surfaced in `show` and `report`; nothing is blocked, redacted, or modified based on them.
 - No multi-user authentication, no admin console, no SIEM forwarding, no behavioral scoring.
 
 ## Contributing
