@@ -531,15 +531,17 @@ class TestSplitWriteTiming:
         # preserving key order, whitespace, unicode, and extra fields.
         assert user_record.content == body_str
 
-    def test_both_records_have_source_live_detection_skipped_metadata_empty(
+    def test_both_records_have_source_live_and_detection_ran(
         self, client, mock_upstream, valid_request_body, read_audit_records
     ):
         client.post(MESSAGES_PATH, json=valid_request_body)
         records = read_audit_records()
         for r in records:
             assert r.source == "live"
-            assert r.detection_status == "skipped"
-            assert r.metadata == {}
+            # Detection runs on every live write; "skipped" would mean
+            # the wiring regressed to the pre-detection proxy.
+            assert r.detection_status != "skipped"
+            assert "detect_secrets" in r.metadata["detection"]["detectors_run"]
 
     def test_both_records_carry_request_body_model_field(
         self, client, mock_upstream, valid_request_body, read_audit_records
@@ -1072,8 +1074,101 @@ class TestAuditStoreIntegration:
         records = read_audit_records()
         assert len(records) == 2
         for r in records:
-            assert r.detection_status == "skipped"
-            assert r.metadata == {}
+            assert r.detection_status in (
+                "ran_clean",
+                "ran_with_hits",
+                "failed",
+            )
+            detection = r.metadata["detection"]
+            assert detection["hit_count"] == len(detection["hits"])
+
+
+# -----------------------------------------------------------------------------
+# TestDetectionWiring
+# -----------------------------------------------------------------------------
+
+
+class TestDetectionWiring:
+    """Detection runs inside every live audit write and never blocks it."""
+
+    def test_secret_in_request_flags_user_record(
+        self, client, mock_upstream, read_audit_records
+    ):
+        aws_key = "AKIAIOSFODNN7EXAMPLE"
+        body = {
+            "model": "claude-test",
+            "messages": [
+                {"role": "user", "content": f"use key {aws_key} please"}
+            ],
+        }
+        client.post(MESSAGES_PATH, json=body)
+        records = read_audit_records()
+        user_record = next(r for r in records if r.role == "user")
+        assert user_record.detection_status == "ran_with_hits"
+        hits = user_record.metadata["detection"]["hits"]
+        assert any(h["type"] == "AWS Access Key" for h in hits)
+
+    def test_secret_text_never_stored_in_metadata(
+        self, client, mock_upstream, read_audit_records
+    ):
+        aws_key = "AKIAIOSFODNN7EXAMPLE"
+        body = {
+            "model": "claude-test",
+            "messages": [{"role": "user", "content": aws_key}],
+        }
+        client.post(MESSAGES_PATH, json=body)
+        for r in read_audit_records():
+            assert aws_key not in json.dumps(r.metadata)
+
+    def test_secret_in_upstream_response_flags_assistant_record(
+        self, client, mock_upstream, valid_request_body, read_audit_records
+    ):
+        aws_key = "AKIAIOSFODNN7EXAMPLE"
+        mock_upstream.queue_response(
+            body=json.dumps(
+                {
+                    "id": "m1",
+                    "role": "assistant",
+                    "content": [
+                        {"type": "text", "text": f"your key is {aws_key}"}
+                    ],
+                }
+            ).encode("utf-8"),
+        )
+        client.post(MESSAGES_PATH, json=valid_request_body)
+        records = read_audit_records()
+        assistant = next(r for r in records if r.role == "assistant")
+        assert assistant.detection_status == "ran_with_hits"
+
+    def test_detection_result_passthrough_to_record(
+        self, client, mock_upstream, valid_request_body,
+        read_audit_records, monkeypatch,
+    ):
+        # The proxy must store exactly what run_detection reports, both
+        # the status column and the metadata envelope. A crafted failed
+        # result stands in for a real detector crash.
+        from llmdr.detectors import DetectionResult
+
+        failed = DetectionResult(
+            status="failed",
+            hits=(),
+            detectors_run=(),
+            detectors_skipped=(),
+            errors=("detect_secrets:RuntimeError",),
+        )
+        monkeypatch.setattr(
+            llmdr.proxy, "run_detection", lambda content: failed
+        )
+        response = client.post(MESSAGES_PATH, json=valid_request_body)
+        # Detection failure is advisory; capture and delivery proceed.
+        assert response.status_code == 200
+        records = read_audit_records()
+        assert len(records) == 2
+        for r in records:
+            assert r.detection_status == "failed"
+            assert r.metadata["detection"]["errors"] == [
+                "detect_secrets:RuntimeError"
+            ]
 
 
 # -----------------------------------------------------------------------------

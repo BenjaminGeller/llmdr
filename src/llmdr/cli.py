@@ -49,6 +49,7 @@ import uvicorn
 
 from llmdr.audit import AuditRecord, AuditStore
 from llmdr.config import Config, ConfigError, generate_encryption_key
+from llmdr.detectors import run_detection
 from llmdr.proxy import create_app
 
 logger = logging.getLogger(__name__)
@@ -637,12 +638,17 @@ def import_cmd(
         with AuditStore(config.db_path, config.encryption_key) as store:
             for conv in plan:
                 for msg in conv.messages:
+                    # run_detection never raises by contract; a
+                    # detector crash becomes detection_status="failed"
+                    # on the record and the import continues.
+                    detection = run_detection(msg.text)
                     metadata: dict[str, Any] = {
                         "imported_by": resolved_operator,
                         "source_file": source_file,
                         "original_message_uuid": msg.uuid,
                         "original_created_at": msg.created_at,
                     }
+                    metadata.update(detection.to_metadata())
                     store.write_record(
                         source="import",
                         conversation_id=conv.uuid,
@@ -651,7 +657,7 @@ def import_cmd(
                         content=msg.text,
                         model=model,
                         metadata=metadata,
-                        detection_status="skipped",
+                        detection_status=detection.status,
                     )
                     written += 1
     except Exception as exc:

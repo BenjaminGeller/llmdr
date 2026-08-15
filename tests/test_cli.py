@@ -695,7 +695,7 @@ class TestImport:
         assert audit_count == 2
         assert "imported 2 message(s) across 1 conversation(s)" in result.stdout
 
-    def test_imported_records_have_source_import_request_id_none_detection_skipped(
+    def test_imported_records_have_source_import_request_id_none_detection_ran(
         self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
     ):
         conv = _make_conv()
@@ -706,7 +706,36 @@ class TestImport:
         for r in records:
             assert r.source == "import"
             assert r.request_id is None
-            assert r.detection_status == "skipped"
+            # Detection runs on every imported message; "skipped" would
+            # mean the wiring regressed to the pre-detection importer.
+            assert r.detection_status != "skipped"
+            assert "detect_secrets" in r.metadata["detection"]["detectors_run"]
+
+    def test_imported_message_with_secret_flags_ran_with_hits(
+        self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
+    ):
+        aws_key = "AKIAIOSFODNN7EXAMPLE"
+        conv = _make_conv(messages=[
+            {
+                "uuid": "m-secret",
+                "text": f"my key is {aws_key}",
+                "sender": "human",
+                "created_at": "2026-06-01T10:00:00Z",
+            },
+        ])
+        export = _make_export_file(tmp_path, [conv])
+        result = runner.invoke(app, ["import", str(export)])
+        assert result.exit_code == 0
+        records = _read_audit_records(db_path, fernet_key)
+        assert len(records) == 1
+        record = records[0]
+        assert record.detection_status == "ran_with_hits"
+        hits = record.metadata["detection"]["hits"]
+        assert any(h["type"] == "AWS Access Key" for h in hits)
+        # Detection metadata coexists with provenance metadata and the
+        # matched secret text is never stored.
+        assert record.metadata["source_file"] == export.name
+        assert aws_key not in json.dumps(record.metadata)
 
     def test_imported_records_metadata_carries_asserted_provenance(
         self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
