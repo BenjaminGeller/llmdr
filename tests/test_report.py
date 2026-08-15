@@ -72,7 +72,7 @@ def _write(
 def _report(store: AuditStore, **kwargs: Any) -> str:
     kwargs.setdefault("analyst_id", "alice")
     kwargs.setdefault("justification", "test report")
-    return generate_report(store, **kwargs)
+    return generate_report(store, **kwargs).html
 
 
 _PII_METADATA = {

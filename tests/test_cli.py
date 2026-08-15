@@ -22,6 +22,7 @@ Class breakdown:
 * TestVerify
 * TestShow
 * TestImport
+* TestReport (file output, overwrite guard, content policy, access log)
 * TestCrossCutting (key-not-echoed, justification-never-from-env,
   consistent ConfigError handling across commands, help discoverability)
 """
@@ -903,6 +904,158 @@ class TestImport:
         records = _read_audit_records(db_path, fernet_key)
         for r in records:
             assert r.metadata["imported_by"] == expected
+
+
+# -----------------------------------------------------------------------------
+# TestReport
+# -----------------------------------------------------------------------------
+
+
+class TestReport:
+    """Report generation: file output, overwrite guard, content policy."""
+
+    def test_happy_path_writes_html_and_exits_0(
+        self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
+    ):
+        _seed_pair(db_path, fernet_key)
+        out = tmp_path / "report.html"
+        result = runner.invoke(
+            app,
+            ["report", "-j", "test", "--analyst-id", "alice", "-o", str(out)],
+        )
+        assert result.exit_code == 0
+        assert f"report written to {out}" in result.stdout
+        assert "chain status: intact" in result.stdout
+        html = out.read_text(encoding="utf-8")
+        assert html.startswith("<!DOCTYPE html>")
+        assert "CHAIN INTACT" in html
+
+    def test_tampered_store_reports_broken_but_exits_0(
+        self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
+    ):
+        _seed_pair(db_path, fernet_key)
+        _tamper(db_path, "audit_records", 1, "model", "forged")
+        out = tmp_path / "report.html"
+        result = runner.invoke(
+            app,
+            ["report", "-j", "test", "--analyst-id", "alice", "-o", str(out)],
+        )
+        # The report is the deliverable; 'llmdr verify' owns the tamper
+        # exit code. The broken state must still be loud in the echo.
+        assert result.exit_code == 0
+        assert "BROKEN" in result.stdout
+        assert "CHAIN BROKEN" in out.read_text(encoding="utf-8")
+
+    def test_refuses_to_overwrite_without_force(
+        self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
+    ):
+        _seed_pair(db_path, fernet_key)
+        out = tmp_path / "report.html"
+        out.write_text("pre-existing evidence file", encoding="utf-8")
+        result = runner.invoke(
+            app,
+            ["report", "-j", "test", "--analyst-id", "alice", "-o", str(out)],
+        )
+        assert result.exit_code == 2
+        assert "already exists" in result.stderr
+        assert out.read_text(encoding="utf-8") == "pre-existing evidence file"
+
+    def test_force_overwrites(
+        self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
+    ):
+        _seed_pair(db_path, fernet_key)
+        out = tmp_path / "report.html"
+        out.write_text("old", encoding="utf-8")
+        result = runner.invoke(
+            app,
+            [
+                "report", "-j", "test", "--analyst-id", "alice",
+                "-o", str(out), "--force",
+            ],
+        )
+        assert result.exit_code == 0
+        assert out.read_text(encoding="utf-8").startswith("<!DOCTYPE html>")
+
+    def test_content_omitted_by_default_included_with_flag(
+        self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
+    ):
+        _seed_pair(
+            db_path, fernet_key, user_content="the aurora launch plan"
+        )
+        out = tmp_path / "no-content.html"
+        result = runner.invoke(
+            app,
+            ["report", "-j", "test", "--analyst-id", "alice", "-o", str(out)],
+        )
+        assert result.exit_code == 0
+        assert "the aurora launch plan" not in out.read_text(encoding="utf-8")
+
+        out_full = tmp_path / "with-content.html"
+        result = runner.invoke(
+            app,
+            [
+                "report", "-j", "test", "--analyst-id", "alice",
+                "-o", str(out_full), "--include-content",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "the aurora launch plan" in out_full.read_text(encoding="utf-8")
+        # The stderr warning mirrors show --full: plaintext left the
+        # encrypted store and the access log pinned the read.
+        assert "evidence" in result.stderr
+        assert "access_log" in result.stderr
+
+    def test_missing_justification_exits_2(
+        self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
+    ):
+        result = runner.invoke(
+            app, ["report", "--analyst-id", "alice", "-o", str(tmp_path / "r.html")]
+        )
+        assert result.exit_code == 2
+
+    def test_missing_analyst_id_exits_2(
+        self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
+    ):
+        result = runner.invoke(
+            app, ["report", "-j", "test", "-o", str(tmp_path / "r.html")]
+        )
+        assert result.exit_code == 2
+        assert "analyst-id" in result.stderr
+
+    def test_report_writes_two_access_log_entries(
+        self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
+    ):
+        _seed_pair(db_path, fernet_key)
+        _, access_before = _count_records(db_path)
+        result = runner.invoke(
+            app,
+            [
+                "report", "-j", "audit sweep", "--analyst-id", "erin",
+                "-o", str(tmp_path / "r.html"),
+            ],
+        )
+        assert result.exit_code == 0
+        _, access_after = _count_records(db_path)
+        assert access_after == access_before + 2
+
+    def test_conversation_filter_narrows_report(
+        self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
+    ):
+        _seed_records(
+            db_path, fernet_key, [("conv-A", "a1"), ("conv-B", "b1")]
+        )
+        out = tmp_path / "r.html"
+        result = runner.invoke(
+            app,
+            [
+                "report", "-j", "test", "--analyst-id", "alice",
+                "-o", str(out), "--conversation-id", "conv-A",
+            ],
+        )
+        assert result.exit_code == 0
+        html = out.read_text(encoding="utf-8")
+        assert "conv-A" in html
+        assert "conv-B" not in html
 
 
 # -----------------------------------------------------------------------------

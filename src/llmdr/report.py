@@ -42,9 +42,24 @@ from typing import Any
 
 from jinja2 import Environment
 
-from llmdr.audit import AuditRecord, AuditStore
+from llmdr.audit import AuditRecord, AuditStore, VerifyResult
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ReportOutput:
+    """Result of one report generation.
+
+    ``html`` is the complete document. ``verify`` is the chain
+    verification result the report embeds, exposed so callers (the
+    CLI) can echo chain state without re-verifying or scraping the
+    HTML. ``record_count`` is the number of records the report covers.
+    """
+
+    html: str
+    verify: VerifyResult
+    record_count: int
 
 
 @dataclass(frozen=True)
@@ -83,8 +98,8 @@ def generate_report(
     since: datetime | None = None,
     until: datetime | None = None,
     include_content: bool = False,
-) -> str:
-    """Build the investigator report and return it as an HTML string.
+) -> ReportOutput:
+    """Build the investigator report.
 
     Args:
         store: An open AuditStore. The caller owns its lifecycle.
@@ -102,7 +117,9 @@ def generate_report(
             see the module docstring for the handling implications.
 
     Returns:
-        A complete, self-contained HTML document as a string.
+        A :class:`ReportOutput` carrying the complete self-contained
+        HTML document, the chain verification result, and the record
+        count.
 
     Raises:
         ValueError: Propagated from the store for empty analyst_id or
@@ -156,7 +173,9 @@ def generate_report(
         include_content,
         analyst_id,
     )
-    return html
+    return ReportOutput(
+        html=html, verify=verify_result, record_count=len(records)
+    )
 
 
 def _build_record_view(
