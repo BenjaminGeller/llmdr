@@ -1,6 +1,6 @@
 """Command-line interface for llmdr.
 
-Five subcommands cover the v0.1 operator surface:
+Six subcommands cover the v0.1 operator surface:
 
 * ``keygen`` mints a Fernet encryption key and prints it to stdout. No
   Config needed; the key is generated, not loaded.
@@ -13,8 +13,10 @@ Five subcommands cover the v0.1 operator surface:
   entry. Justification is required on every call.
 * ``import`` ingests a Claude conversation export into the audit store as
   ``source="import"`` records.
-
-A sixth command, ``report``, will land alongside ``report.py``.
+* ``report`` writes the HTML investigator report to a file. Content is
+  omitted unless ``--include-content`` is passed. Every invocation
+  writes two access_log entries (chain verification plus record read).
+  Justification is required on every call.
 
 Cross-cutting contracts (do not soften without an explicit decision):
 
@@ -49,7 +51,9 @@ import uvicorn
 
 from llmdr.audit import AuditRecord, AuditStore
 from llmdr.config import Config, ConfigError, generate_encryption_key
+from llmdr.detectors import run_detection
 from llmdr.proxy import create_app
+from llmdr.report import generate_report
 
 logger = logging.getLogger(__name__)
 
@@ -510,6 +514,146 @@ def _emit_records_json(
 
 
 # -----------------------------------------------------------------------------
+# report
+# -----------------------------------------------------------------------------
+
+
+@app.command()
+def report(
+    justification: Annotated[
+        str,
+        typer.Option(
+            "--justification", "-j",
+            help="Business justification for this report. Required.",
+        ),
+    ],
+    out: Annotated[
+        Path,
+        typer.Option(
+            "--out", "-o",
+            help="Output path for the HTML report.",
+        ),
+    ] = Path("llmdr-report.html"),
+    last: Annotated[
+        Optional[int],
+        typer.Option(
+            "--last", "-n",
+            min=1,
+            help="Limit to the most recent N records. Default: all records.",
+        ),
+    ] = None,
+    conversation_id: Annotated[
+        Optional[str],
+        typer.Option(
+            "--conversation-id", "-c",
+            help="Filter to a single conversation id.",
+        ),
+    ] = None,
+    since: Annotated[
+        Optional[str],
+        typer.Option(
+            "--since",
+            help="Lower-bound ts, ISO8601 with timezone (e.g. 2026-06-01T00:00:00Z).",
+        ),
+    ] = None,
+    until: Annotated[
+        Optional[str],
+        typer.Option(
+            "--until",
+            help="Upper-bound ts, ISO8601 with timezone.",
+        ),
+    ] = None,
+    include_content: Annotated[
+        bool,
+        typer.Option(
+            "--include-content",
+            help=(
+                "Embed decrypted message content in the report. The output "
+                "file will hold plaintext outside the encrypted store."
+            ),
+        ),
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            help="Overwrite the output file if it already exists.",
+        ),
+    ] = False,
+    analyst_id: Annotated[
+        Optional[str],
+        typer.Option(
+            "--analyst-id",
+            help="Operator identity. Falls back to LLMDR_ANALYST_ID env.",
+        ),
+    ] = None,
+    case_ref: Annotated[
+        Optional[str],
+        typer.Option(
+            "--case-ref",
+            help="Optional case or ticket reference recorded on the access_log entry.",
+        ),
+    ] = None,
+) -> None:
+    """Generate the HTML investigator report.
+
+    Verifies the chain, reads the selected records, and writes a
+    self-contained HTML report to --out. Chain state is reported inside
+    the report and echoed here; the exit code stays 0 whenever the
+    report was generated, because 'llmdr verify' is the command whose
+    exit code signals tamper. Refuses to overwrite an existing output
+    file without --force, so a prior report cannot be silently
+    replaced.
+    """
+    config = _load_config_or_die()
+    _configure_logging(config.log_level)
+    resolved_analyst = _resolve_analyst_id_or_die(analyst_id, config)
+
+    since_dt = _parse_iso8601_aware(since, flag_name="--since")
+    until_dt = _parse_iso8601_aware(until, flag_name="--until")
+
+    if out.exists() and not force:
+        typer.echo(
+            f"{out} already exists. Pass --force to overwrite it.",
+            err=True,
+        )
+        raise typer.Exit(code=EXIT_USAGE)
+
+    with AuditStore(config.db_path, config.encryption_key) as store:
+        output = generate_report(
+            store,
+            analyst_id=resolved_analyst,
+            justification=justification,
+            case_ref=case_ref,
+            last=last,
+            conversation_id=conversation_id,
+            since=since_dt,
+            until=until_dt,
+            include_content=include_content,
+        )
+
+    try:
+        out.write_text(output.html, encoding="utf-8")
+    except OSError as exc:
+        typer.echo(f"failed to write {out}: {exc}", err=True)
+        raise typer.Exit(code=EXIT_USAGE)
+
+    typer.echo(f"report written to {out} ({output.record_count} record(s))")
+    typer.echo(
+        "chain status: "
+        + ("intact" if output.verify.ok else "BROKEN, see report")
+    )
+    if include_content:
+        access_id = _last_access_log_id(config.db_path)
+        typer.echo(
+            f"Decrypted content embedded in {out}. Handle the file as "
+            f"evidence. The access_log records this read with "
+            f"id={access_id}.",
+            err=True,
+        )
+
+
+# -----------------------------------------------------------------------------
 # import
 # -----------------------------------------------------------------------------
 
@@ -637,12 +781,17 @@ def import_cmd(
         with AuditStore(config.db_path, config.encryption_key) as store:
             for conv in plan:
                 for msg in conv.messages:
+                    # run_detection never raises by contract; a
+                    # detector crash becomes detection_status="failed"
+                    # on the record and the import continues.
+                    detection = run_detection(msg.text)
                     metadata: dict[str, Any] = {
                         "imported_by": resolved_operator,
                         "source_file": source_file,
                         "original_message_uuid": msg.uuid,
                         "original_created_at": msg.created_at,
                     }
+                    metadata.update(detection.to_metadata())
                     store.write_record(
                         source="import",
                         conversation_id=conv.uuid,
@@ -651,7 +800,7 @@ def import_cmd(
                         content=msg.text,
                         model=model,
                         metadata=metadata,
-                        detection_status="skipped",
+                        detection_status=detection.status,
                     )
                     written += 1
     except Exception as exc:

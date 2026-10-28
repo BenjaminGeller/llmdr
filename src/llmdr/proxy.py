@@ -64,6 +64,7 @@ from fastapi.responses import JSONResponse, Response
 
 from llmdr.audit import AuditStore
 from llmdr.config import Config
+from llmdr.detectors import run_detection
 
 logger = logging.getLogger(__name__)
 
@@ -399,7 +400,14 @@ def _write_audit_record(
     ever touched by the thread that created it. SQLite WAL handles the
     short-lived concurrent connections cleanly, and local-disk open is
     sub-millisecond, so the per-write open is cheap.
+
+    Detection runs here, on the same worker thread, so the (possibly
+    CPU-bound) scan never blocks the event loop. run_detection never
+    raises by contract; a detector crash becomes
+    detection_status="failed" on the record, and the record is still
+    written. Detection is advisory; capture is not.
     """
+    detection = run_detection(content)
     with AuditStore(config.db_path, config.encryption_key) as store:
         store.write_record(
             source="live",
@@ -408,8 +416,8 @@ def _write_audit_record(
             role=role,
             content=content,
             model=model,
-            metadata={},
-            detection_status="skipped",
+            metadata=detection.to_metadata(),
+            detection_status=detection.status,
         )
 
 
