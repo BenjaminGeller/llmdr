@@ -2,7 +2,7 @@
 
 Tamper-evident forensic audit for Anthropic (Claude) API traffic. llmdr captures every prompt and response that passes through it into a hash-chained, encrypted, independently verifiable audit trail built for investigation, compliance review, and insider-risk work.
 
-Status: work in progress, v0.1. MIT licensed.
+Status: v0.1.0. MIT licensed.
 
 ## What it is
 

@@ -162,9 +162,7 @@ def run_detection(content: str) -> DetectionResult:
         detectors_run.append(DETECTOR_SECRETS)
     except Exception as exc:
         errors.append(f"{DETECTOR_SECRETS}:{type(exc).__name__}")
-        logger.warning(
-            "detect-secrets scan failed: %s", type(exc).__name__
-        )
+        logger.warning("detect-secrets scan failed: %s", type(exc).__name__)
 
     analyzer = _get_presidio_analyzer()
     if analyzer is None:
@@ -234,9 +232,7 @@ def _scan_secrets(content: str) -> list[DetectionHit]:
             for secret in scan_line(line):
                 plugin = entropy_plugins.get(secret.type)
                 if plugin is not None and secret.secret_value is not None:
-                    entropy = plugin.calculate_shannon_entropy(
-                        secret.secret_value
-                    )
+                    entropy = plugin.calculate_shannon_entropy(secret.secret_value)
                     if entropy <= plugin.entropy_limit:
                         continue
                 key = (secret.type, lineno, secret.secret_hash)
@@ -310,9 +306,7 @@ def _build_presidio_analyzer() -> AnalyzerEngine | bool:
         return False
 
     english_models = sorted(
-        model
-        for model in spacy.util.get_installed_models()
-        if model.startswith("en")
+        model for model in spacy.util.get_installed_models() if model.startswith("en")
     )
     if not english_models:
         logger.warning(
@@ -323,9 +317,7 @@ def _build_presidio_analyzer() -> AnalyzerEngine | bool:
         )
         return False
     model_name = (
-        _PREFERRED_SPACY_MODEL
-        if _PREFERRED_SPACY_MODEL in english_models
-        else english_models[0]
+        _PREFERRED_SPACY_MODEL if _PREFERRED_SPACY_MODEL in english_models else english_models[0]
     )
 
     try:
@@ -335,13 +327,10 @@ def _build_presidio_analyzer() -> AnalyzerEngine | bool:
                 "models": [{"lang_code": "en", "model_name": model_name}],
             }
         ).create_engine()
-        analyzer = AnalyzerEngine(
-            nlp_engine=nlp_engine, supported_languages=["en"]
-        )
+        analyzer = AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=["en"])
     except Exception as exc:
         logger.warning(
-            "presidio engine failed to start with model %s (%s); "
-            "PII detection skipped.",
+            "presidio engine failed to start with model %s (%s); " "PII detection skipped.",
             model_name,
             type(exc).__name__,
         )

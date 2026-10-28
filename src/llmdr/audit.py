@@ -190,9 +190,9 @@ def _canonical_json(obj: dict[str, Any]) -> bytes:
     Canonical form: keys sorted, no insignificant whitespace, UTF-8 bytes.
     The same shape is used on write and on verification.
     """
-    return json.dumps(
-        obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode("utf-8")
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+        "utf-8"
+    )
 
 
 def _sha256_hex(data: bytes) -> str:
@@ -754,9 +754,7 @@ class AuditStore:
 
         all_ids = [
             int(r["id"])
-            for r in self._conn.execute(
-                "SELECT id FROM audit_records ORDER BY id ASC"
-            ).fetchall()
+            for r in self._conn.execute("SELECT id FROM audit_records ORDER BY id ASC").fetchall()
         ]
         self._write_access_log(
             analyst_id=analyst_id,

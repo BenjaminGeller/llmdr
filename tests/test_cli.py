@@ -51,7 +51,6 @@ from llmdr.config import (
     ENV_UPSTREAM_BASE_URL,
 )
 
-
 # -----------------------------------------------------------------------------
 # Fixtures and helpers
 # -----------------------------------------------------------------------------
@@ -346,6 +345,7 @@ class TestServe:
         assert kwargs["log_level"] == "info"
         # First positional arg is the FastAPI app from create_app.
         from fastapi import FastAPI
+
         assert isinstance(calls[0][0][0], FastAPI)
 
     def test_serve_with_loopback_host_does_not_emit_warning(
@@ -427,20 +427,14 @@ class TestVerify:
         assert "audit chain BROKEN" in result.stdout
         assert "audit_records broken at id=1" in result.stdout
 
-    def test_tampered_access_log_exits_1(
-        self, runner, env_with_key_and_db, db_path, fernet_key
-    ):
+    def test_tampered_access_log_exits_1(self, runner, env_with_key_and_db, db_path, fernet_key):
         _seed_pair(db_path, fernet_key)
         # Produce an access_log entry by running verify once.
-        first = runner.invoke(
-            app, ["verify", "-j", "first", "--analyst-id", "alice"]
-        )
+        first = runner.invoke(app, ["verify", "-j", "first", "--analyst-id", "alice"])
         assert first.exit_code == 0
         # Tamper it.
         _tamper(db_path, "access_log", 1, "analyst_id", "bob")
-        result = runner.invoke(
-            app, ["verify", "-j", "second", "--analyst-id", "alice"]
-        )
+        result = runner.invoke(app, ["verify", "-j", "second", "--analyst-id", "alice"])
         assert result.exit_code == 1
         assert "audit chain BROKEN" in result.stdout
         assert "access_log broken at id=1" in result.stdout
@@ -479,9 +473,7 @@ class TestVerify:
     ):
         _seed_pair(db_path, fernet_key)
         before_audit, before_access = _count_records(db_path)
-        result = runner.invoke(
-            app, ["verify", "-j", "audit-effect", "--analyst-id", "alice"]
-        )
+        result = runner.invoke(app, ["verify", "-j", "audit-effect", "--analyst-id", "alice"])
         assert result.exit_code == 0
         after_audit, after_access = _count_records(db_path)
         assert after_audit == before_audit
@@ -499,12 +491,8 @@ _CONTENT_SENTINEL = "SECRET_CONTENT_SENTINEL_xyz789"
 class TestShow:
     """Conservative defaults, content opt-in, JSON shape, filter behavior."""
 
-    def test_empty_store_returns_no_records_message_exit_0(
-        self, runner, env_with_key_and_db
-    ):
-        result = runner.invoke(
-            app, ["show", "-j", "empty-check", "--analyst-id", "alice"]
-        )
+    def test_empty_store_returns_no_records_message_exit_0(self, runner, env_with_key_and_db):
+        result = runner.invoke(app, ["show", "-j", "empty-check", "--analyst-id", "alice"])
         assert result.exit_code == 0
         assert "(no records)" in result.stdout
 
@@ -512,13 +500,12 @@ class TestShow:
         self, runner, env_with_key_and_db, db_path, fernet_key
     ):
         _seed_pair(
-            db_path, fernet_key,
+            db_path,
+            fernet_key,
             user_content=_CONTENT_SENTINEL,
             assistant_content="reply",
         )
-        result = runner.invoke(
-            app, ["show", "-j", "metadata-only", "--analyst-id", "alice"]
-        )
+        result = runner.invoke(app, ["show", "-j", "metadata-only", "--analyst-id", "alice"])
         assert result.exit_code == 0
         # The conservative-default property: content never appears
         # without --full.
@@ -531,7 +518,8 @@ class TestShow:
         self, runner, env_with_key_and_db, db_path, fernet_key
     ):
         _seed_pair(
-            db_path, fernet_key,
+            db_path,
+            fernet_key,
             user_content=_CONTENT_SENTINEL,
             assistant_content="reply",
         )
@@ -559,7 +547,8 @@ class TestShow:
         self, runner, env_with_key_and_db, db_path, fernet_key
     ):
         _seed_pair(
-            db_path, fernet_key,
+            db_path,
+            fernet_key,
             user_content=_CONTENT_SENTINEL,
             assistant_content="reply",
         )
@@ -583,33 +572,44 @@ class TestShow:
         self, runner, env_with_key_and_db, db_path, fernet_key
     ):
         _seed_pair(
-            db_path, fernet_key,
+            db_path,
+            fernet_key,
             user_content=_CONTENT_SENTINEL,
             assistant_content="reply",
         )
         result = runner.invoke(
             app,
             [
-                "show", "-j", "json-full", "--analyst-id", "alice",
-                "--json", "--full",
+                "show",
+                "-j",
+                "json-full",
+                "--analyst-id",
+                "alice",
+                "--json",
+                "--full",
             ],
         )
         assert result.exit_code == 0
         parsed = json.loads(result.stdout)
         assert any(item.get("content") == _CONTENT_SENTINEL for item in parsed)
 
-    def test_last_n_limits_record_count(
-        self, runner, env_with_key_and_db, db_path, fernet_key
-    ):
+    def test_last_n_limits_record_count(self, runner, env_with_key_and_db, db_path, fernet_key):
         _seed_records(
-            db_path, fernet_key,
+            db_path,
+            fernet_key,
             [(f"conv-{i}", f"content-{i}") for i in range(5)],
         )
         result = runner.invoke(
             app,
             [
-                "show", "-j", "last-test", "--analyst-id", "alice",
-                "--last", "2", "--json",
+                "show",
+                "-j",
+                "last-test",
+                "--analyst-id",
+                "alice",
+                "--last",
+                "2",
+                "--json",
             ],
         )
         assert result.exit_code == 0
@@ -623,8 +623,13 @@ class TestShow:
         result = runner.invoke(
             app,
             [
-                "show", "-j", "since-naive", "--analyst-id", "alice",
-                "--since", "2026-01-01T00:00:00",
+                "show",
+                "-j",
+                "since-naive",
+                "--analyst-id",
+                "alice",
+                "--since",
+                "2026-01-01T00:00:00",
             ],
         )
         assert result.exit_code == 2
@@ -637,8 +642,13 @@ class TestShow:
         result = runner.invoke(
             app,
             [
-                "show", "-j", "until-naive", "--analyst-id", "alice",
-                "--until", "2026-01-01T00:00:00",
+                "show",
+                "-j",
+                "until-naive",
+                "--analyst-id",
+                "alice",
+                "--until",
+                "2026-01-01T00:00:00",
             ],
         )
         assert result.exit_code == 2
@@ -648,7 +658,8 @@ class TestShow:
         self, runner, env_with_key_and_db, db_path, fernet_key
     ):
         _seed_records(
-            db_path, fernet_key,
+            db_path,
+            fernet_key,
             [
                 ("conv-A", "a1"),
                 ("conv-B", "b1"),
@@ -659,8 +670,14 @@ class TestShow:
         result = runner.invoke(
             app,
             [
-                "show", "-j", "filter-test", "--analyst-id", "alice",
-                "--conversation-id", "conv-A", "--json",
+                "show",
+                "-j",
+                "filter-test",
+                "--analyst-id",
+                "alice",
+                "--conversation-id",
+                "conv-A",
+                "--json",
             ],
         )
         assert result.exit_code == 0
@@ -716,14 +733,16 @@ class TestImport:
         self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
     ):
         aws_key = "AKIAIOSFODNN7EXAMPLE"
-        conv = _make_conv(messages=[
-            {
-                "uuid": "m-secret",
-                "text": f"my key is {aws_key}",
-                "sender": "human",
-                "created_at": "2026-06-01T10:00:00Z",
-            },
-        ])
+        conv = _make_conv(
+            messages=[
+                {
+                    "uuid": "m-secret",
+                    "text": f"my key is {aws_key}",
+                    "sender": "human",
+                    "created_at": "2026-06-01T10:00:00Z",
+                },
+            ]
+        )
         export = _make_export_file(tmp_path, [conv])
         result = runner.invoke(app, ["import", str(export)])
         assert result.exit_code == 0
@@ -742,12 +761,8 @@ class TestImport:
         self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
     ):
         conv = _make_conv(uuid="conv-prov-1")
-        export = _make_export_file(
-            tmp_path, [conv], filename="provenance-export.json"
-        )
-        result = runner.invoke(
-            app, ["import", str(export), "--operator", "alice"]
-        )
+        export = _make_export_file(tmp_path, [conv], filename="provenance-export.json")
+        result = runner.invoke(app, ["import", str(export), "--operator", "alice"])
         assert result.exit_code == 0
         records = _read_audit_records(db_path, fernet_key)
         assert len(records) == 2
@@ -777,20 +792,22 @@ class TestImport:
     def test_human_sender_maps_to_user_role_assistant_to_assistant(
         self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
     ):
-        conv = _make_conv(messages=[
-            {
-                "uuid": "m-h",
-                "text": "from human",
-                "sender": "human",
-                "created_at": "2026-06-01T10:00:00Z",
-            },
-            {
-                "uuid": "m-a",
-                "text": "from assistant",
-                "sender": "assistant",
-                "created_at": "2026-06-01T10:00:01Z",
-            },
-        ])
+        conv = _make_conv(
+            messages=[
+                {
+                    "uuid": "m-h",
+                    "text": "from human",
+                    "sender": "human",
+                    "created_at": "2026-06-01T10:00:00Z",
+                },
+                {
+                    "uuid": "m-a",
+                    "text": "from assistant",
+                    "sender": "assistant",
+                    "created_at": "2026-06-01T10:00:01Z",
+                },
+            ]
+        )
         export = _make_export_file(tmp_path, [conv])
         result = runner.invoke(app, ["import", str(export)])
         assert result.exit_code == 0
@@ -816,7 +833,9 @@ class TestImport:
             # uuid missing
             "chat_messages": [
                 {
-                    "uuid": "m1", "text": "x", "sender": "human",
+                    "uuid": "m1",
+                    "text": "x",
+                    "sender": "human",
                     "created_at": "2026-06-01T10:00:00Z",
                 },
             ],
@@ -831,14 +850,16 @@ class TestImport:
     def test_bad_sender_value_aborts_phase_1_no_records_written(
         self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
     ):
-        conv = _make_conv(messages=[
-            {
-                "uuid": "m-bad",
-                "text": "from robot",
-                "sender": "robot",
-                "created_at": "2026-06-01T10:00:00Z",
-            },
-        ])
+        conv = _make_conv(
+            messages=[
+                {
+                    "uuid": "m-bad",
+                    "text": "from robot",
+                    "sender": "robot",
+                    "created_at": "2026-06-01T10:00:00Z",
+                },
+            ]
+        )
         export = _make_export_file(tmp_path, [conv])
         result = runner.invoke(app, ["import", str(export)])
         assert result.exit_code == 2
@@ -960,17 +981,21 @@ class TestReport:
         assert "already exists" in result.stderr
         assert out.read_text(encoding="utf-8") == "pre-existing evidence file"
 
-    def test_force_overwrites(
-        self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
-    ):
+    def test_force_overwrites(self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path):
         _seed_pair(db_path, fernet_key)
         out = tmp_path / "report.html"
         out.write_text("old", encoding="utf-8")
         result = runner.invoke(
             app,
             [
-                "report", "-j", "test", "--analyst-id", "alice",
-                "-o", str(out), "--force",
+                "report",
+                "-j",
+                "test",
+                "--analyst-id",
+                "alice",
+                "-o",
+                str(out),
+                "--force",
             ],
         )
         assert result.exit_code == 0
@@ -979,9 +1004,7 @@ class TestReport:
     def test_content_omitted_by_default_included_with_flag(
         self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
     ):
-        _seed_pair(
-            db_path, fernet_key, user_content="the aurora launch plan"
-        )
+        _seed_pair(db_path, fernet_key, user_content="the aurora launch plan")
         out = tmp_path / "no-content.html"
         result = runner.invoke(
             app,
@@ -994,8 +1017,14 @@ class TestReport:
         result = runner.invoke(
             app,
             [
-                "report", "-j", "test", "--analyst-id", "alice",
-                "-o", str(out_full), "--include-content",
+                "report",
+                "-j",
+                "test",
+                "--analyst-id",
+                "alice",
+                "-o",
+                str(out_full),
+                "--include-content",
             ],
         )
         assert result.exit_code == 0
@@ -1016,9 +1045,7 @@ class TestReport:
     def test_missing_analyst_id_exits_2(
         self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
     ):
-        result = runner.invoke(
-            app, ["report", "-j", "test", "-o", str(tmp_path / "r.html")]
-        )
+        result = runner.invoke(app, ["report", "-j", "test", "-o", str(tmp_path / "r.html")])
         assert result.exit_code == 2
         assert "analyst-id" in result.stderr
 
@@ -1030,8 +1057,13 @@ class TestReport:
         result = runner.invoke(
             app,
             [
-                "report", "-j", "audit sweep", "--analyst-id", "erin",
-                "-o", str(tmp_path / "r.html"),
+                "report",
+                "-j",
+                "audit sweep",
+                "--analyst-id",
+                "erin",
+                "-o",
+                str(tmp_path / "r.html"),
             ],
         )
         assert result.exit_code == 0
@@ -1041,15 +1073,20 @@ class TestReport:
     def test_conversation_filter_narrows_report(
         self, runner, env_with_key_and_db, db_path, fernet_key, tmp_path
     ):
-        _seed_records(
-            db_path, fernet_key, [("conv-A", "a1"), ("conv-B", "b1")]
-        )
+        _seed_records(db_path, fernet_key, [("conv-A", "a1"), ("conv-B", "b1")])
         out = tmp_path / "r.html"
         result = runner.invoke(
             app,
             [
-                "report", "-j", "test", "--analyst-id", "alice",
-                "-o", str(out), "--conversation-id", "conv-A",
+                "report",
+                "-j",
+                "test",
+                "--analyst-id",
+                "alice",
+                "-o",
+                str(out),
+                "--conversation-id",
+                "conv-A",
             ],
         )
         assert result.exit_code == 0
@@ -1066,9 +1103,7 @@ class TestReport:
 class TestCrossCutting:
     """Properties that span multiple commands."""
 
-    def test_config_error_message_does_not_echo_bad_key_value(
-        self, runner, monkeypatch, db_path
-    ):
+    def test_config_error_message_does_not_echo_bad_key_value(self, runner, monkeypatch, db_path):
         # The most security-critical CLI property. A malformed key
         # value must never appear in any user-visible error path. We
         # set a clearly-bad value with a distinctive sentinel and
@@ -1076,9 +1111,7 @@ class TestCrossCutting:
         sentinel = "NOT-A-REAL-KEY-DEADBEEF-DISTINCTIVE-SENTINEL"
         monkeypatch.setenv(ENV_ENCRYPTION_KEY, sentinel)
         monkeypatch.setenv(ENV_DB_PATH, str(db_path))
-        result = runner.invoke(
-            app, ["verify", "-j", "test", "--analyst-id", "alice"]
-        )
+        result = runner.invoke(app, ["verify", "-j", "test", "--analyst-id", "alice"])
         assert result.exit_code == 2
         # The bad value never appears in stderr or stdout.
         assert sentinel not in result.stderr

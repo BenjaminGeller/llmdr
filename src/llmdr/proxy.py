@@ -222,10 +222,7 @@ async def _handle_messages(request: Request) -> Response:
         return _error_response(
             status_code=400,
             error_type="llmdr_unsupported",
-            message=(
-                "llmdr v0.1 does not proxy streaming requests. "
-                "Set stream=false."
-            ),
+            message=("llmdr v0.1 does not proxy streaming requests. " "Set stream=false."),
         )
 
     model = body_obj.get("model")
@@ -297,24 +294,20 @@ async def _handle_messages(request: Request) -> Response:
             status_code=502,
             error_type="llmdr_upstream_unreachable",
             message=(
-                f"Upstream at {config.upstream_base_url} unreachable: "
-                f"{type(exc).__name__}."
+                f"Upstream at {config.upstream_base_url} unreachable: " f"{type(exc).__name__}."
             ),
         )
 
     upstream_status = upstream_response.status_code
     upstream_body = upstream_response.content
-    upstream_request_id = upstream_response.headers.get(
-        UPSTREAM_REQUEST_ID_HEADER
-    )
+    upstream_request_id = upstream_response.headers.get(UPSTREAM_REQUEST_ID_HEADER)
 
     if 200 <= upstream_status < 300:
         try:
             assistant_content = upstream_body.decode("utf-8")
         except UnicodeDecodeError:
             logger.error(
-                "upstream returned non-UTF-8 body on status=%d, "
-                "conversation_id=%s",
+                "upstream returned non-UTF-8 body on status=%d, " "conversation_id=%s",
                 upstream_status,
                 conversation_id,
             )
@@ -471,9 +464,7 @@ def _filter_response_headers(headers: Mapping[str, str]) -> dict[str, str]:
     return filtered
 
 
-def _error_response(
-    *, status_code: int, error_type: str, message: str
-) -> JSONResponse:
+def _error_response(*, status_code: int, error_type: str, message: str) -> JSONResponse:
     """Construct a JSON error response in the llmdr error envelope.
 
     The envelope shape mirrors Anthropic's ``{"error": {"type", "message"}}``
