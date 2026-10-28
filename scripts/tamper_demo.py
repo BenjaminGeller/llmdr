@@ -72,12 +72,17 @@ def _write_demo_records(store: AuditStore) -> None:
     # must never write fabricated content as source="live". Live records are
     # meant to commit to traffic llmdr actually observed.
     records = [
-        ("user", "req_demo_0001",
-         "Summarize our Q3 acquisition targets and the price ceiling for each."),
-        ("assistant", "req_demo_0002",
-         "Top target: Northwind Logistics, ceiling $40M. Secondary: Acme Freight, ceiling $18M."),
-        ("user", "req_demo_0003",
-         "Understood. Begin outreach to Northwind first."),
+        (
+            "user",
+            "req_demo_0001",
+            "Summarize our Q3 acquisition targets and the price ceiling for each.",
+        ),
+        (
+            "assistant",
+            "req_demo_0002",
+            "Top target: Northwind Logistics, ceiling $40M. Secondary: Acme Freight, ceiling $18M.",
+        ),
+        ("user", "req_demo_0003", "Understood. Begin outreach to Northwind first."),
     ]
     for role, request_id, content in records:
         record_id = store.write_record(

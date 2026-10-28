@@ -67,9 +67,7 @@ class TestSecretsDetection:
 
     def test_keyword_secret_detected(self) -> None:
         result = run_detection("password = 'hunter2secret'")
-        assert any(
-            h.hit_type == "Secret Keyword" for h in result.hits
-        )
+        assert any(h.hit_type == "Secret Keyword" for h in result.hits)
         assert result.status == "ran_with_hits"
 
     def test_line_number_attribution(self) -> None:
@@ -83,10 +81,7 @@ class TestSecretsDetection:
         result = run_detection(f"key: {AWS_KEY}")
         aws_hits = [h for h in result.hits if h.hit_type == "AWS Access Key"]
         assert aws_hits
-        assert all(
-            isinstance(h.secret_hash, str) and len(h.secret_hash) == 40
-            for h in aws_hits
-        )
+        assert all(isinstance(h.secret_hash, str) and len(h.secret_hash) == 40 for h in aws_hits)
 
     def test_same_secret_same_line_deduplicated(self) -> None:
         result = run_detection(f"{AWS_KEY} and again {AWS_KEY}")
@@ -110,9 +105,7 @@ class TestEntropyPostFilter:
     def test_plain_prose_is_clean(self) -> None:
         result = run_detection("The meeting is at 3pm tomorrow, bring notes.")
         assert DETECTOR_SECRETS in result.detectors_run
-        assert not [
-            h for h in result.hits if h.detector == DETECTOR_SECRETS
-        ]
+        assert not [h for h in result.hits if h.detector == DETECTOR_SECRETS]
 
     def test_typical_llm_request_body_is_clean(self) -> None:
         body = json.dumps(
@@ -128,17 +121,11 @@ class TestEntropyPostFilter:
             }
         )
         result = run_detection(body)
-        assert not [
-            h for h in result.hits if h.detector == DETECTOR_SECRETS
-        ]
+        assert not [h for h in result.hits if h.detector == DETECTOR_SECRETS]
 
     def test_genuinely_high_entropy_token_still_flags(self) -> None:
-        result = run_detection(
-            f"here is the value {HIGH_ENTROPY_TOKEN} as requested"
-        )
-        entropy_hits = [
-            h for h in result.hits if "Entropy" in h.hit_type
-        ]
+        result = run_detection(f"here is the value {HIGH_ENTROPY_TOKEN} as requested")
+        entropy_hits = [h for h in result.hits if "Entropy" in h.hit_type]
         assert entropy_hits
 
     def test_empty_content_is_clean(self) -> None:
@@ -186,31 +173,23 @@ class TestNoContentLeak:
 
 
 class TestStatusPrecedence:
-    def test_clean_run_without_presidio_is_ran_clean(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_clean_run_without_presidio_is_ran_clean(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(detectors, "_get_presidio_analyzer", lambda: None)
         result = run_detection("nothing sensitive here at all")
         assert result.status == "ran_clean"
         assert result.detectors_skipped == (DETECTOR_PII,)
 
-    def test_hits_win_over_failure(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_hits_win_over_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
         class _Boom:
             def analyze(self, **kwargs: object) -> None:
                 raise RuntimeError("engine exploded")
 
-        monkeypatch.setattr(
-            detectors, "_get_presidio_analyzer", lambda: _Boom()
-        )
+        monkeypatch.setattr(detectors, "_get_presidio_analyzer", lambda: _Boom())
         result = run_detection(f"key {AWS_KEY}")
         assert result.status == "ran_with_hits"
         assert f"{DETECTOR_PII}:RuntimeError" in result.errors
 
-    def test_failure_without_hits_is_failed(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_failure_without_hits_is_failed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         def _boom(content: str) -> list[DetectionHit]:
             raise ValueError("scanner crashed")
 
@@ -232,9 +211,7 @@ class TestStatusPrecedence:
         assert result.status == "ran_clean"
         assert result.detectors_skipped == (DETECTOR_PII,)
 
-    def test_error_message_not_in_errors(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_error_message_not_in_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:
         secret_text = "the secret content that must not leak"
 
         def _boom(content: str) -> list[DetectionHit]:
@@ -270,9 +247,7 @@ class TestMetadataShape:
         result = run_detection(f"key {AWS_KEY}\npassword='hunter2secret'")
         json.dumps(result.to_metadata())
 
-    def test_truncation_flag_and_true_count(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_truncation_flag_and_true_count(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(detectors, "MAX_HITS_RECORDED", 3)
         hits = tuple(
             DetectionHit(
@@ -313,9 +288,7 @@ class TestPresidio:
     def test_email_detected_with_span(self) -> None:
         content = "Reach me at jane.doe@example.com about the case."
         result = run_detection(content)
-        email_hits = [
-            h for h in result.hits if h.hit_type == "EMAIL_ADDRESS"
-        ]
+        email_hits = [h for h in result.hits if h.hit_type == "EMAIL_ADDRESS"]
         assert email_hits
         hit = email_hits[0]
         assert content[hit.start : hit.end] == "jane.doe@example.com"
@@ -334,9 +307,7 @@ class TestPresidio:
 
 
 class TestPresidioUnavailable:
-    def test_missing_presidio_is_skip_not_failure(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_missing_presidio_is_skip_not_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(detectors, "_presidio_analyzer", False)
         result = run_detection("hello there")
         assert DETECTOR_PII in result.detectors_skipped
@@ -349,9 +320,7 @@ class TestPresidioUnavailable:
 
 
 class TestNeverRaises:
-    def test_both_detectors_crashing_still_returns(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_both_detectors_crashing_still_returns(self, monkeypatch: pytest.MonkeyPatch) -> None:
         def _boom(content: str) -> list[DetectionHit]:
             raise RuntimeError("boom")
 
@@ -360,9 +329,7 @@ class TestNeverRaises:
                 raise OSError("model gone")
 
         monkeypatch.setattr(detectors, "_scan_secrets", _boom)
-        monkeypatch.setattr(
-            detectors, "_get_presidio_analyzer", lambda: _Boom()
-        )
+        monkeypatch.setattr(detectors, "_get_presidio_analyzer", lambda: _Boom())
         result = run_detection("anything")
         assert result.status == "failed"
         assert sorted(result.errors) == [

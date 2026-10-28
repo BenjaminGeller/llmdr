@@ -48,7 +48,6 @@ from llmdr.config import (
     generate_encryption_key,
 )
 
-
 # -----------------------------------------------------------------------------
 # Fixtures
 # -----------------------------------------------------------------------------
@@ -110,9 +109,7 @@ def _assert_sentinel_absent(exc: BaseException, sentinel: str) -> None:
             if isinstance(arg, str):
                 assert sentinel not in arg, f"sentinel leaked into args: {arg!r}"
             else:
-                assert sentinel not in repr(arg), (
-                    f"sentinel leaked into args repr: {arg!r}"
-                )
+                assert sentinel not in repr(arg), f"sentinel leaked into args repr: {arg!r}"
 
 
 # -----------------------------------------------------------------------------
@@ -191,9 +188,7 @@ class TestEncryptionKeyMalformed:
         assert "is not set" not in msg
         _assert_sentinel_absent(exc_info.value, sentinel)
 
-    def test_trailing_whitespace_on_valid_key_does_not_leak(
-        self, monkeypatch, valid_key_str
-    ):
+    def test_trailing_whitespace_on_valid_key_does_not_leak(self, monkeypatch, valid_key_str):
         # A valid key with a trailing newline appended. Fernet's base64
         # decode would tolerate this silently, so the loader's explicit
         # whitespace check is what rejects it. The key body is the
@@ -266,9 +261,7 @@ class TestDbPath:
         monkeypatch.setenv(ENV_DB_PATH, "")
         assert Config.from_env().db_path == Path(DEFAULT_DB_PATH)
 
-    def test_valid_path_with_existing_parent(
-        self, monkeypatch, valid_key_str, tmp_path
-    ):
+    def test_valid_path_with_existing_parent(self, monkeypatch, valid_key_str, tmp_path):
         target = tmp_path / "audit.db"
         monkeypatch.setenv(ENV_ENCRYPTION_KEY, valid_key_str)
         monkeypatch.setenv(ENV_DB_PATH, str(target))
@@ -321,9 +314,7 @@ class TestUpstreamBaseUrl:
         monkeypatch.setenv(ENV_UPSTREAM_BASE_URL, "https://api.anthropic.com/")
         assert Config.from_env().upstream_base_url == "https://api.anthropic.com"
 
-    def test_multiple_trailing_slashes_stripped(
-        self, monkeypatch, valid_key_str
-    ):
+    def test_multiple_trailing_slashes_stripped(self, monkeypatch, valid_key_str):
         monkeypatch.setenv(ENV_ENCRYPTION_KEY, valid_key_str)
         monkeypatch.setenv(ENV_UPSTREAM_BASE_URL, "https://api.anthropic.com///")
         assert Config.from_env().upstream_base_url == "https://api.anthropic.com"
@@ -375,9 +366,7 @@ class TestProxyPort:
             Config.from_env()
         assert ENV_PROXY_PORT in str(exc_info.value)
 
-    def test_non_integer_rejected_with_value_in_message(
-        self, monkeypatch, valid_key_str
-    ):
+    def test_non_integer_rejected_with_value_in_message(self, monkeypatch, valid_key_str):
         monkeypatch.setenv(ENV_ENCRYPTION_KEY, valid_key_str)
         monkeypatch.setenv(ENV_PROXY_PORT, "not_a_port")
         with pytest.raises(ConfigError) as exc_info:
@@ -404,9 +393,7 @@ class TestProxyHost:
         "host",
         ["0.0.0.0", "::1", "my-host.local", "not_a_real_host", "10.0.0.1"],
     )
-    def test_arbitrary_host_returned_verbatim(
-        self, monkeypatch, valid_key_str, host
-    ):
+    def test_arbitrary_host_returned_verbatim(self, monkeypatch, valid_key_str, host):
         monkeypatch.setenv(ENV_ENCRYPTION_KEY, valid_key_str)
         monkeypatch.setenv(ENV_PROXY_HOST, host)
         assert Config.from_env().proxy_host == host
@@ -467,9 +454,7 @@ class TestDefaultAnalystId:
         "value",
         ["analyst-1", "Alice Smith", "user@example.com", "опера тор"],
     )
-    def test_value_returned_verbatim(
-        self, monkeypatch, valid_key_str, value
-    ):
+    def test_value_returned_verbatim(self, monkeypatch, valid_key_str, value):
         monkeypatch.setenv(ENV_ENCRYPTION_KEY, valid_key_str)
         monkeypatch.setenv(ENV_ANALYST_ID, value)
         assert Config.from_env().default_analyst_id == value
@@ -479,9 +464,7 @@ class TestFullFromEnv:
     """A fully populated valid environment produces a Config with all
     expected field values and types. The dataclass is frozen."""
 
-    def test_full_round_trip_pins_values_and_types(
-        self, monkeypatch, tmp_path
-    ):
+    def test_full_round_trip_pins_values_and_types(self, monkeypatch, tmp_path):
         key = Fernet.generate_key()
         db_target = tmp_path / "audit.db"
         monkeypatch.setenv(ENV_ENCRYPTION_KEY, key.decode("ascii"))
@@ -523,17 +506,13 @@ class TestGenerateLoadSeparation:
     """The loader path never calls Fernet.generate_key. Generation and
     loading are strictly separate operations."""
 
-    def test_loader_does_not_call_generate_key(
-        self, monkeypatch, valid_key_str
-    ):
+    def test_loader_does_not_call_generate_key(self, monkeypatch, valid_key_str):
         # valid_key_str fixture already produced a key before this body
         # runs, so the sentinel installed below cannot break setup.
         def _sentinel(*args, **kwargs):
             pytest.fail("loader must not call Fernet.generate_key on any path")
 
-        monkeypatch.setattr(
-            "cryptography.fernet.Fernet.generate_key", _sentinel
-        )
+        monkeypatch.setattr("cryptography.fernet.Fernet.generate_key", _sentinel)
 
         # Path 1: missing key. ConfigError, no generate call.
         with pytest.raises(ConfigError):
@@ -549,9 +528,7 @@ class TestGenerateLoadSeparation:
         monkeypatch.setenv(ENV_ENCRYPTION_KEY, valid_key_str)
         Config.from_env()
 
-    def test_generate_encryption_key_does_call_generate_key(
-        self, monkeypatch
-    ):
+    def test_generate_encryption_key_does_call_generate_key(self, monkeypatch):
         # Positive control: confirms the sentinel approach above would
         # actually catch a misuse. generate_encryption_key MUST call
         # Fernet.generate_key.
@@ -562,9 +539,7 @@ class TestGenerateLoadSeparation:
             called["count"] += 1
             return original()
 
-        monkeypatch.setattr(
-            "cryptography.fernet.Fernet.generate_key", _counting
-        )
+        monkeypatch.setattr("cryptography.fernet.Fernet.generate_key", _counting)
         key = generate_encryption_key()
         assert called["count"] == 1
         # And it returns a Fernet-valid key.
@@ -600,9 +575,5 @@ class TestStructuralGuards:
         # key). The module is meant to do validation only, with no
         # logging surface. Catches both `import logging` and the
         # `logger = logging.getLogger(...)` pattern.
-        assert not hasattr(llmdr.config, "logging"), (
-            "llmdr.config must not import logging"
-        )
-        assert not hasattr(llmdr.config, "logger"), (
-            "llmdr.config must not define a logger"
-        )
+        assert not hasattr(llmdr.config, "logging"), "llmdr.config must not import logging"
+        assert not hasattr(llmdr.config, "logger"), "llmdr.config must not define a logger"

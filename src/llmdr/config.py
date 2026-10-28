@@ -217,9 +217,7 @@ def _load_upstream_base_url() -> str:
     raw = os.environ.get(ENV_UPSTREAM_BASE_URL) or DEFAULT_UPSTREAM_BASE_URL
     parsed = urlparse(raw)
     if parsed.scheme not in _VALID_URL_SCHEMES or not parsed.netloc:
-        raise ConfigError(
-            f"{ENV_UPSTREAM_BASE_URL} must be an http or https URL, got: {raw!r}."
-        )
+        raise ConfigError(f"{ENV_UPSTREAM_BASE_URL} must be an http or https URL, got: {raw!r}.")
     # Strip trailing slash so proxy URL construction can append paths
     # cleanly. Reachability is intentionally NOT validated; tests and
     # mock servers point at non-Anthropic hosts legitimately.
@@ -246,9 +244,7 @@ def _load_proxy_port() -> int:
             f"{ENV_PROXY_PORT} must be an integer between 1 and 65535, got: {raw!r}."
         ) from None
     if not 1 <= port <= 65535:
-        raise ConfigError(
-            f"{ENV_PROXY_PORT} must be an integer between 1 and 65535, got: {port}."
-        )
+        raise ConfigError(f"{ENV_PROXY_PORT} must be an integer between 1 and 65535, got: {port}.")
     return port
 
 
@@ -257,8 +253,7 @@ def _load_log_level() -> str:
     normalized = raw.upper()
     if normalized not in _VALID_LOG_LEVELS:
         raise ConfigError(
-            f"{ENV_LOG_LEVEL} must be one of "
-            f"{', '.join(_VALID_LOG_LEVELS)}, got: {raw!r}."
+            f"{ENV_LOG_LEVEL} must be one of " f"{', '.join(_VALID_LOG_LEVELS)}, got: {raw!r}."
         )
     return normalized
 

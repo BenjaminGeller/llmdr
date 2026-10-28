@@ -54,7 +54,6 @@ from llmdr.proxy import (
     create_app,
 )
 
-
 # -----------------------------------------------------------------------------
 # Fixtures and helpers
 # -----------------------------------------------------------------------------
@@ -209,7 +208,13 @@ class TestAppConstruction:
         )
         assert catchall is not None
         assert catchall >= {
-            "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD",
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+            "OPTIONS",
+            "HEAD",
         }
 
     def test_docs_and_openapi_endpoints_disabled(self, client):
@@ -329,7 +334,9 @@ class TestRequestValidation:
         assert response.status_code == 200
         assert len(mock_upstream.requests) == 1
 
-    def test_stream_zero_is_treated_as_not_streaming(self, client, mock_upstream, valid_request_body):
+    def test_stream_zero_is_treated_as_not_streaming(
+        self, client, mock_upstream, valid_request_body
+    ):
         # Anthropic's contract treats only stream=true as streaming;
         # falsy non-bool should be forwarded as-is.
         body = dict(valid_request_body, stream=0)
@@ -566,9 +573,7 @@ class TestSplitWriteTiming:
 class TestRequestForwardingFidelity:
     """Bytes and headers reach upstream unchanged, except for stripped headers."""
 
-    def test_request_body_bytes_forwarded_verbatim(
-        self, client, mock_upstream
-    ):
+    def test_request_body_bytes_forwarded_verbatim(self, client, mock_upstream):
         raw = (
             b'{"model": "claude-x", '
             b'"messages": [{"role": "user", "content": "hi"}], '
@@ -591,9 +596,7 @@ class TestRequestForwardingFidelity:
         )
         assert mock_upstream.requests[0].headers.get("x-api-key") == "sk-test-client-key"
 
-    def test_anthropic_protocol_headers_forwarded(
-        self, client, mock_upstream, valid_request_body
-    ):
+    def test_anthropic_protocol_headers_forwarded(self, client, mock_upstream, valid_request_body):
         client.post(
             MESSAGES_PATH,
             json=valid_request_body,
@@ -603,10 +606,7 @@ class TestRequestForwardingFidelity:
             },
         )
         assert mock_upstream.requests[0].headers.get("anthropic-version") == "2023-06-01"
-        assert (
-            mock_upstream.requests[0].headers.get("anthropic-beta")
-            == "messages-2025-01-01"
-        )
+        assert mock_upstream.requests[0].headers.get("anthropic-beta") == "messages-2025-01-01"
 
     def test_hop_by_hop_request_headers_not_forwarded_as_client_value(
         self, client, mock_upstream, valid_request_body
@@ -651,9 +651,7 @@ class TestRequestForwardingFidelity:
             json=valid_request_body,
             headers={CONVERSATION_ID_HEADER: "conv-private"},
         )
-        upstream_header_names = {
-            k.lower() for k in mock_upstream.requests[0].headers.keys()
-        }
+        upstream_header_names = {k.lower() for k in mock_upstream.requests[0].headers.keys()}
         assert CONVERSATION_ID_HEADER not in upstream_header_names
 
 
@@ -665,9 +663,7 @@ class TestRequestForwardingFidelity:
 class TestResponseForwardingFidelity:
     """Upstream responses reach the client byte-for-byte with audited marker."""
 
-    def test_2xx_body_forwarded_verbatim(
-        self, client, mock_upstream, valid_request_body
-    ):
+    def test_2xx_body_forwarded_verbatim(self, client, mock_upstream, valid_request_body):
         upstream_body = (
             b'{"id":"msg_specific","type":"message",'
             b'"content":[{"type":"text","text":"reply"}],"model":"x"}'
@@ -681,8 +677,7 @@ class TestResponseForwardingFidelity:
         self, client, mock_upstream, valid_request_body
     ):
         body = (
-            b'{"type":"error","error":'
-            b'{"type":"invalid_request_error","message":"bad input"}}'
+            b'{"type":"error","error":' b'{"type":"invalid_request_error","message":"bad input"}}'
         )
         mock_upstream.queue_response(status=400, body=body)
         response = client.post(MESSAGES_PATH, json=valid_request_body)
@@ -705,9 +700,7 @@ class TestResponseForwardingFidelity:
         response = client.post(MESSAGES_PATH, json=valid_request_body)
         assert response.headers.get("request-id") == "req-from-anthropic"
 
-    def test_anthropic_ratelimit_headers_forwarded(
-        self, client, mock_upstream, valid_request_body
-    ):
+    def test_anthropic_ratelimit_headers_forwarded(self, client, mock_upstream, valid_request_body):
         mock_upstream.queue_response(
             headers={
                 "anthropic-ratelimit-requests-remaining": "100",
@@ -731,9 +724,7 @@ class TestResponseForwardingFidelity:
         assert r.headers.get(AUDITED_RESPONSE_HEADER) == "true"
 
         # Proxy-originated 400 (streaming) has no marker.
-        r = client.post(
-            MESSAGES_PATH, json=dict(valid_request_body, stream=True)
-        )
+        r = client.post(MESSAGES_PATH, json=dict(valid_request_body, stream=True))
         assert AUDITED_RESPONSE_HEADER not in r.headers
 
 
@@ -958,17 +949,17 @@ class TestLoggingDiscipline:
         self, client, mock_upstream, valid_request_body, caplog
     ):
         sentinel = "SENTINEL_RESPONSE_TOKEN_f6g7h8i9j0"
-        body = json.dumps(
-            {"id": "m1", "content": [{"type": "text", "text": sentinel}]}
-        ).encode("utf-8")
+        body = json.dumps({"id": "m1", "content": [{"type": "text", "text": sentinel}]}).encode(
+            "utf-8"
+        )
         mock_upstream.queue_response(status=200, body=body)
         with caplog.at_level(logging.DEBUG, logger="llmdr.proxy"):
             response = client.post(MESSAGES_PATH, json=valid_request_body)
         assert response.status_code == 200
         for record in caplog.records:
-            assert not _record_carries_sentinel(record, sentinel), (
-                f"sentinel leaked into log record: {record.getMessage()!r}"
-            )
+            assert not _record_carries_sentinel(
+                record, sentinel
+            ), f"sentinel leaked into log record: {record.getMessage()!r}"
 
     def test_no_log_record_contains_upstream_error_body_sentinel(
         self, client, mock_upstream, valid_request_body, caplog
@@ -982,9 +973,9 @@ class TestLoggingDiscipline:
             response = client.post(MESSAGES_PATH, json=valid_request_body)
         assert response.status_code == 400
         for record in caplog.records:
-            assert not _record_carries_sentinel(record, sentinel), (
-                f"sentinel leaked into log record: {record.getMessage()!r}"
-            )
+            assert not _record_carries_sentinel(
+                record, sentinel
+            ), f"sentinel leaked into log record: {record.getMessage()!r}"
 
 
 # -----------------------------------------------------------------------------
@@ -1003,9 +994,7 @@ class TestAuditStoreIntegration:
             assert response.status_code == 200
 
         with AuditStore(proxy_config.db_path, proxy_config.encryption_key) as store:
-            records = store.get_records(
-                analyst_id="test", justification="test"
-            )
+            records = store.get_records(analyst_id="test", justification="test")
             assert len(records) == 6
             assert [r.role for r in records] == ["user", "assistant"] * 3
             result = store.verify_chain(analyst_id="test")
@@ -1040,9 +1029,7 @@ class TestAuditStoreIntegration:
             assert r.status_code == 200, r.content
 
         with AuditStore(proxy_config.db_path, proxy_config.encryption_key) as store:
-            records = store.get_records(
-                analyst_id="test", justification="test"
-            )
+            records = store.get_records(analyst_id="test", justification="test")
             assert len(records) == n * 2
             roles = sorted(r.role for r in records)
             assert roles == ["assistant"] * n + ["user"] * n
@@ -1060,9 +1047,7 @@ class TestAuditStoreIntegration:
             client.post(MESSAGES_PATH, json=valid_request_body)
         conn = sqlite3.connect(str(proxy_config.db_path))
         try:
-            row = conn.execute(
-                "SELECT COUNT(*) FROM audit_records"
-            ).fetchone()
+            row = conn.execute("SELECT COUNT(*) FROM audit_records").fetchone()
             assert row[0] == 4
         finally:
             conn.close()
@@ -1091,15 +1076,11 @@ class TestAuditStoreIntegration:
 class TestDetectionWiring:
     """Detection runs inside every live audit write and never blocks it."""
 
-    def test_secret_in_request_flags_user_record(
-        self, client, mock_upstream, read_audit_records
-    ):
+    def test_secret_in_request_flags_user_record(self, client, mock_upstream, read_audit_records):
         aws_key = "AKIAIOSFODNN7EXAMPLE"
         body = {
             "model": "claude-test",
-            "messages": [
-                {"role": "user", "content": f"use key {aws_key} please"}
-            ],
+            "messages": [{"role": "user", "content": f"use key {aws_key} please"}],
         }
         client.post(MESSAGES_PATH, json=body)
         records = read_audit_records()
@@ -1108,9 +1089,7 @@ class TestDetectionWiring:
         hits = user_record.metadata["detection"]["hits"]
         assert any(h["type"] == "AWS Access Key" for h in hits)
 
-    def test_secret_text_never_stored_in_metadata(
-        self, client, mock_upstream, read_audit_records
-    ):
+    def test_secret_text_never_stored_in_metadata(self, client, mock_upstream, read_audit_records):
         aws_key = "AKIAIOSFODNN7EXAMPLE"
         body = {
             "model": "claude-test",
@@ -1129,9 +1108,7 @@ class TestDetectionWiring:
                 {
                     "id": "m1",
                     "role": "assistant",
-                    "content": [
-                        {"type": "text", "text": f"your key is {aws_key}"}
-                    ],
+                    "content": [{"type": "text", "text": f"your key is {aws_key}"}],
                 }
             ).encode("utf-8"),
         )
@@ -1141,8 +1118,12 @@ class TestDetectionWiring:
         assert assistant.detection_status == "ran_with_hits"
 
     def test_detection_result_passthrough_to_record(
-        self, client, mock_upstream, valid_request_body,
-        read_audit_records, monkeypatch,
+        self,
+        client,
+        mock_upstream,
+        valid_request_body,
+        read_audit_records,
+        monkeypatch,
     ):
         # The proxy must store exactly what run_detection reports, both
         # the status column and the metadata envelope. A crafted failed
@@ -1156,9 +1137,7 @@ class TestDetectionWiring:
             detectors_skipped=(),
             errors=("detect_secrets:RuntimeError",),
         )
-        monkeypatch.setattr(
-            llmdr.proxy, "run_detection", lambda content: failed
-        )
+        monkeypatch.setattr(llmdr.proxy, "run_detection", lambda content: failed)
         response = client.post(MESSAGES_PATH, json=valid_request_body)
         # Detection failure is advisory; capture and delivery proceed.
         assert response.status_code == 200
@@ -1166,9 +1145,7 @@ class TestDetectionWiring:
         assert len(records) == 2
         for r in records:
             assert r.detection_status == "failed"
-            assert r.metadata["detection"]["errors"] == [
-                "detect_secrets:RuntimeError"
-            ]
+            assert r.metadata["detection"]["errors"] == ["detect_secrets:RuntimeError"]
 
 
 # -----------------------------------------------------------------------------
@@ -1179,9 +1156,7 @@ class TestDetectionWiring:
 class TestLifespan:
     """The real lifespan starts and stops cleanly with a real httpx client."""
 
-    def test_lifespan_enters_and_exits_cleanly_with_real_upstream_client(
-        self, proxy_config
-    ):
+    def test_lifespan_enters_and_exits_cleanly_with_real_upstream_client(self, proxy_config):
         # Use a fresh app *without* mocking upstream. The lifespan
         # constructs a real httpx.AsyncClient, we observe it on
         # app.state.upstream during the window, then exit cleanly.

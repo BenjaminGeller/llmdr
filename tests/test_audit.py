@@ -46,7 +46,6 @@ from llmdr.audit import (
     DecryptionError,
 )
 
-
 # -----------------------------------------------------------------------------
 # Fixtures
 # -----------------------------------------------------------------------------
@@ -197,13 +196,9 @@ class TestEmptyStore:
         records = store.get_records(**analyst_ctx)
         assert records == []
 
-    def test_get_records_on_empty_store_still_writes_access_log(
-        self, store, analyst_ctx, raw_read
-    ):
+    def test_get_records_on_empty_store_still_writes_access_log(self, store, analyst_ctx, raw_read):
         store.get_records(**analyst_ctx)
-        rows = raw_read(
-            "SELECT row_count_returned, success, record_ids_accessed FROM access_log"
-        )
+        rows = raw_read("SELECT row_count_returned, success, record_ids_accessed FROM access_log")
         assert len(rows) == 1
         row_count, success, ids_json = rows[0]
         assert row_count == 0
@@ -222,17 +217,15 @@ class TestSingleRecord:
     """The first record anchors to the genesis sentinel and what comes
     back via get_records matches what went in."""
 
-    def test_first_record_id_and_genesis_anchor(
-        self, store, valid_write_kwargs, raw_read
-    ):
+    def test_first_record_id_and_genesis_anchor(self, store, valid_write_kwargs, raw_read):
         record_id = store.write_record(**valid_write_kwargs)
         assert record_id == 1
         rows = raw_read("SELECT prev_hash, row_hash FROM audit_records WHERE id = 1")
         prev_hash, row_hash = rows[0]
         assert prev_hash == GENESIS_HASH
-        assert re.fullmatch(r"[0-9a-f]{64}", row_hash), (
-            f"row_hash is not 64 lowercase hex chars: {row_hash!r}"
-        )
+        assert re.fullmatch(
+            r"[0-9a-f]{64}", row_hash
+        ), f"row_hash is not 64 lowercase hex chars: {row_hash!r}"
 
     def test_round_trip_fields_match(self, store, valid_write_kwargs, analyst_ctx):
         store.write_record(**valid_write_kwargs)
@@ -259,9 +252,7 @@ class TestMultiRecordChain:
     first row anchors to genesis, and verification is purely a function
     of persisted state."""
 
-    def test_chain_links_correctly_across_records(
-        self, store, valid_write_kwargs, raw_read
-    ):
+    def test_chain_links_correctly_across_records(self, store, valid_write_kwargs, raw_read):
         for i in range(5):
             kwargs = {
                 **valid_write_kwargs,
@@ -269,15 +260,12 @@ class TestMultiRecordChain:
                 "content": f"message {i}",
             }
             store.write_record(**kwargs)
-        rows = raw_read(
-            "SELECT id, prev_hash, row_hash FROM audit_records ORDER BY id ASC"
-        )
+        rows = raw_read("SELECT id, prev_hash, row_hash FROM audit_records ORDER BY id ASC")
         assert [r[0] for r in rows] == [1, 2, 3, 4, 5]
         assert rows[0][1] == GENESIS_HASH
         for i in range(1, 5):
             assert rows[i][1] == rows[i - 1][2], (
-                f"row {rows[i][0]} prev_hash does not match row "
-                f"{rows[i - 1][0]} row_hash"
+                f"row {rows[i][0]} prev_hash does not match row " f"{rows[i - 1][0]} row_hash"
             )
 
     def test_verify_ok_after_five_writes(self, store, valid_write_kwargs, analyst_ctx):
@@ -323,9 +311,7 @@ class TestAuditTamper:
         for i in range(n):
             store.write_record(**{**valid_write_kwargs, "content": f"msg {i}"})
 
-    def test_content_tamper_attributed_to_row(
-        self, store, valid_write_kwargs, analyst_ctx, tamper
-    ):
+    def test_content_tamper_attributed_to_row(self, store, valid_write_kwargs, analyst_ctx, tamper):
         self._write_n(store, valid_write_kwargs, 5)
         tamper("audit_records", 3, "content", "tampered_ciphertext")
         result = store.verify_chain(analyst_id=analyst_ctx["analyst_id"])
@@ -401,9 +387,7 @@ class TestAccessLogOnReadPaths:
     ):
         store.write_record(**valid_write_kwargs)
         store.verify_chain(analyst_id=analyst_ctx["analyst_id"])
-        rows = raw_read(
-            "SELECT row_count_returned, record_ids_accessed, success FROM access_log"
-        )
+        rows = raw_read("SELECT row_count_returned, record_ids_accessed, success FROM access_log")
         assert len(rows) == 1
         count, ids_json, success = rows[0]
         assert count == 1
@@ -439,9 +423,7 @@ class TestAccessLogOnReadPaths:
             source_ip="1.2.3.4",
             session_id="s-1",
         )
-        rows = raw_read(
-            "SELECT query_params_json, case_ref, source_ip, session_id FROM access_log"
-        )
+        rows = raw_read("SELECT query_params_json, case_ref, source_ip, session_id FROM access_log")
         assert len(rows) == 1
         query_params_json, case_ref, source_ip, session_id = rows[0]
         params = json.loads(query_params_json)
@@ -472,9 +454,7 @@ class TestEncryption:
         assert records[0].content == self.MARKER
         assert records[0].metadata == {"secret_field": self.MARKER, "list": [1, 2, 3]}
 
-    def test_plaintext_absent_from_raw_columns(
-        self, store, valid_write_kwargs, raw_read
-    ):
+    def test_plaintext_absent_from_raw_columns(self, store, valid_write_kwargs, raw_read):
         kwargs = {
             **valid_write_kwargs,
             "content": self.MARKER,
@@ -491,9 +471,7 @@ class TestEncryption:
             else:
                 assert self.MARKER not in raw
 
-    def test_rich_metadata_round_trip(
-        self, store, valid_write_kwargs, analyst_ctx
-    ):
+    def test_rich_metadata_round_trip(self, store, valid_write_kwargs, analyst_ctx):
         metadata = {
             "detector_hits": [
                 {"detector": "presidio", "type": "PERSON", "score": 0.85, "start": 12, "end": 19},
@@ -509,9 +487,7 @@ class TestEncryption:
         records = store.get_records(**analyst_ctx)
         assert records[0].metadata == metadata
 
-    def test_empty_metadata_round_trip(
-        self, store, valid_write_kwargs, analyst_ctx
-    ):
+    def test_empty_metadata_round_trip(self, store, valid_write_kwargs, analyst_ctx):
         store.write_record(**{**valid_write_kwargs, "metadata": {}})
         records = store.get_records(**analyst_ctx)
         assert records[0].metadata == {}
@@ -540,15 +516,11 @@ class TestWriteRecordValidation:
         after = raw_read("SELECT COUNT(*) FROM audit_records")[0][0]
         assert after == before
 
-    def test_id_sequence_after_rejected_write(
-        self, store, valid_write_kwargs, analyst_ctx
-    ):
+    def test_id_sequence_after_rejected_write(self, store, valid_write_kwargs, analyst_ctx):
         first_id = store.write_record(**valid_write_kwargs)
         with pytest.raises(ValueError):
             store.write_record(**{**valid_write_kwargs, "source": "webhook"})
-        next_id = store.write_record(
-            **{**valid_write_kwargs, "content": "after rejected"}
-        )
+        next_id = store.write_record(**{**valid_write_kwargs, "content": "after rejected"})
         assert first_id == 1
         assert next_id == 2
         result = store.verify_chain(analyst_id=analyst_ctx["analyst_id"])
@@ -643,9 +615,7 @@ class TestCiphertextProperty:
             result = verifier.verify_chain(analyst_id=analyst_ctx["analyst_id"])
             assert result.ok is True
 
-    def test_wrong_key_cannot_decrypt(
-        self, db_path, fernet_key, valid_write_kwargs, analyst_ctx
-    ):
+    def test_wrong_key_cannot_decrypt(self, db_path, fernet_key, valid_write_kwargs, analyst_ctx):
         with AuditStore(db_path, fernet_key) as writer:
             writer.write_record(**valid_write_kwargs)
         wrong_key = Fernet.generate_key()
@@ -684,9 +654,7 @@ class TestAtomicity:
         # Restore the real connection so the next write completes normally.
         monkeypatch.undo()
 
-        next_id = store.write_record(
-            **{**valid_write_kwargs, "content": "after recovery"}
-        )
+        next_id = store.write_record(**{**valid_write_kwargs, "content": "after recovery"})
         # The failed write did not consume id=2.
         assert next_id == 2
 
@@ -698,9 +666,7 @@ class TestAtomicity:
 class TestKeyVersion:
     """The configured key_version is persisted and surfaces on read."""
 
-    def test_key_version_round_trips(
-        self, db_path, fernet_key, valid_write_kwargs, analyst_ctx
-    ):
+    def test_key_version_round_trips(self, db_path, fernet_key, valid_write_kwargs, analyst_ctx):
         with AuditStore(db_path, fernet_key, key_version=2) as store:
             store.write_record(**valid_write_kwargs)
             records = store.get_records(**analyst_ctx)

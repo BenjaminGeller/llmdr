@@ -152,9 +152,7 @@ def generate_report(
     active_filters = {k: v for k, v in filters.items() if v is not None}
 
     html = _render(
-        generated_at=datetime.now(timezone.utc).strftime(
-            "%Y-%m-%d %H:%M:%S UTC"
-        ),
+        generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
         analyst_id=analyst_id,
         justification=justification,
         case_ref=case_ref,
@@ -166,26 +164,19 @@ def generate_report(
         include_content=include_content,
     )
     logger.info(
-        "generated report: %d records, chain_intact=%s, "
-        "include_content=%s, analyst=%s",
+        "generated report: %d records, chain_intact=%s, " "include_content=%s, analyst=%s",
         len(records),
         verify_result.ok,
         include_content,
         analyst_id,
     )
-    return ReportOutput(
-        html=html, verify=verify_result, record_count=len(records)
-    )
+    return ReportOutput(html=html, verify=verify_result, record_count=len(records))
 
 
-def _build_record_view(
-    record: AuditRecord, include_content: bool
-) -> _RecordView:
+def _build_record_view(record: AuditRecord, include_content: bool) -> _RecordView:
     detection = record.metadata.get("detection", {})
     hits = list(detection.get("hits", []))
-    segments = (
-        _segment_content(record.content, hits) if include_content else None
-    )
+    segments = _segment_content(record.content, hits) if include_content else None
     return _RecordView(
         id=record.id,
         ts=record.ts,
@@ -201,9 +192,7 @@ def _build_record_view(
     )
 
 
-def _segment_content(
-    content: str, hits: list[dict[str, Any]]
-) -> list[_ContentSegment]:
+def _segment_content(content: str, hits: list[dict[str, Any]]) -> list[_ContentSegment]:
     """Split content into plain and highlighted runs from hit spans.
 
     Only hits carrying character offsets (Presidio) produce highlight
@@ -215,11 +204,7 @@ def _segment_content(
     spans: list[tuple[int, int]] = []
     for hit in hits:
         start, end = hit.get("start"), hit.get("end")
-        if (
-            isinstance(start, int)
-            and isinstance(end, int)
-            and 0 <= start < end <= len(content)
-        ):
+        if isinstance(start, int) and isinstance(end, int) and 0 <= start < end <= len(content):
             spans.append((start, end))
     if not spans:
         return [_ContentSegment(text=content, highlighted=False)]
@@ -237,17 +222,11 @@ def _segment_content(
     cursor = 0
     for start, end in merged:
         if start > cursor:
-            segments.append(
-                _ContentSegment(text=content[cursor:start], highlighted=False)
-            )
-        segments.append(
-            _ContentSegment(text=content[start:end], highlighted=True)
-        )
+            segments.append(_ContentSegment(text=content[cursor:start], highlighted=False))
+        segments.append(_ContentSegment(text=content[start:end], highlighted=True))
         cursor = end
     if cursor < len(content):
-        segments.append(
-            _ContentSegment(text=content[cursor:], highlighted=False)
-        )
+        segments.append(_ContentSegment(text=content[cursor:], highlighted=False))
     return segments
 
 
@@ -289,9 +268,7 @@ def _build_stats(records: list[AuditRecord]) -> dict[str, Any]:
         "by_role": dict(sorted(by_role.items())),
         "by_model": dict(sorted(by_model.items())),
         "by_detection_status": dict(sorted(by_detection_status.items())),
-        "hit_type_counts": dict(
-            sorted(hit_type_counts.items(), key=lambda kv: -kv[1])
-        ),
+        "hit_type_counts": dict(sorted(hit_type_counts.items(), key=lambda kv: -kv[1])),
         "records_with_hits": records_with_hits,
         "total_hits": total_hits,
     }

@@ -156,9 +156,7 @@ class TestChainBadge:
         _write(store, content="original two")
         conn = sqlite3.connect(str(db_path))
         try:
-            conn.execute(
-                "UPDATE audit_records SET model = 'forged-model' WHERE id = 1"
-            )
+            conn.execute("UPDATE audit_records SET model = 'forged-model' WHERE id = 1")
             conn.commit()
         finally:
             conn.close()
@@ -174,15 +172,13 @@ class TestChainBadge:
 
 
 class TestAccessLogging:
-    def test_report_writes_exactly_two_access_entries(
-        self, store, db_path
-    ) -> None:
+    def test_report_writes_exactly_two_access_entries(self, store, db_path) -> None:
         _write(store)
         before = self._access_rows(db_path)
         _report(store, analyst_id="dave", justification="quarterly audit")
         rows = self._access_rows(db_path)
         assert len(rows) == len(before) + 2
-        new_rows = rows[len(before):]
+        new_rows = rows[len(before) :]
         for analyst, justification in new_rows:
             assert analyst == "dave"
             assert "report generation" in justification

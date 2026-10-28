@@ -105,9 +105,7 @@ def _configure_logging(level: str) -> None:
     )
 
 
-def _resolve_analyst_id_or_die(
-    flag_value: Optional[str], config: Config
-) -> str:
+def _resolve_analyst_id_or_die(flag_value: Optional[str], config: Config) -> str:
     """Apply the flag-then-env resolution order; exit 2 if neither set.
 
     Used by read commands (verify, show). Write commands have their own
@@ -133,12 +131,8 @@ def _row_counts(db_path: Path) -> tuple[int, int]:
     """
     conn = sqlite3.connect(str(db_path))
     try:
-        audit_count = conn.execute(
-            "SELECT COUNT(*) FROM audit_records"
-        ).fetchone()[0]
-        access_count = conn.execute(
-            "SELECT COUNT(*) FROM access_log"
-        ).fetchone()[0]
+        audit_count = conn.execute("SELECT COUNT(*) FROM audit_records").fetchone()[0]
+        access_count = conn.execute("SELECT COUNT(*) FROM access_log").fetchone()[0]
         return int(audit_count), int(access_count)
     finally:
         conn.close()
@@ -160,9 +154,7 @@ def _last_access_log_id(db_path: Path) -> int:
         conn.close()
 
 
-def _parse_iso8601_aware(
-    value: Optional[str], *, flag_name: str
-) -> Optional[datetime]:
+def _parse_iso8601_aware(value: Optional[str], *, flag_name: str) -> Optional[datetime]:
     """Parse an ISO8601 string and reject naive datetimes.
 
     audit.py rejects naive datetimes at its public boundary, so we
@@ -196,7 +188,8 @@ def keygen(
     quiet: Annotated[
         bool,
         typer.Option(
-            "--quiet", "-q",
+            "--quiet",
+            "-q",
             help="Suppress the stderr handling warning; print the key only.",
         ),
     ] = False,
@@ -283,7 +276,8 @@ def verify(
     justification: Annotated[
         str,
         typer.Option(
-            "--justification", "-j",
+            "--justification",
+            "-j",
             help="Business justification for this verification. Required.",
         ),
     ],
@@ -324,15 +318,11 @@ def verify(
 
     typer.echo("audit chain BROKEN")
     if result.audit_tampered_at is not None:
-        typer.echo(
-            f"  audit_records broken at id={result.audit_tampered_at}"
-        )
+        typer.echo(f"  audit_records broken at id={result.audit_tampered_at}")
     else:
         typer.echo(f"  audit_records: intact ({audit_count} rows)")
     if result.access_log_tampered_at is not None:
-        typer.echo(
-            f"  access_log broken at id={result.access_log_tampered_at}"
-        )
+        typer.echo(f"  access_log broken at id={result.access_log_tampered_at}")
     else:
         typer.echo(f"  access_log: intact ({access_count} rows)")
     raise typer.Exit(code=EXIT_TAMPER)
@@ -348,14 +338,16 @@ def show(
     justification: Annotated[
         str,
         typer.Option(
-            "--justification", "-j",
+            "--justification",
+            "-j",
             help="Business justification for this read. Required.",
         ),
     ],
     last: Annotated[
         int,
         typer.Option(
-            "--last", "-n",
+            "--last",
+            "-n",
             min=1,
             help="Return at most this many of the most recent records.",
         ),
@@ -363,7 +355,8 @@ def show(
     conversation_id: Annotated[
         Optional[str],
         typer.Option(
-            "--conversation-id", "-c",
+            "--conversation-id",
+            "-c",
             help="Filter to a single conversation id.",
         ),
     ] = None,
@@ -384,7 +377,8 @@ def show(
     full: Annotated[
         bool,
         typer.Option(
-            "--full", "-f",
+            "--full",
+            "-f",
             help="Show full decrypted content per record. Default omits content.",
         ),
     ] = False,
@@ -488,9 +482,7 @@ def _emit_records_full(records: list[AuditRecord]) -> None:
         typer.echo("")
 
 
-def _emit_records_json(
-    records: list[AuditRecord], *, include_content: bool
-) -> None:
+def _emit_records_json(records: list[AuditRecord], *, include_content: bool) -> None:
     out: list[dict[str, Any]] = []
     for r in records:
         item: dict[str, Any] = {
@@ -523,21 +515,24 @@ def report(
     justification: Annotated[
         str,
         typer.Option(
-            "--justification", "-j",
+            "--justification",
+            "-j",
             help="Business justification for this report. Required.",
         ),
     ],
     out: Annotated[
         Path,
         typer.Option(
-            "--out", "-o",
+            "--out",
+            "-o",
             help="Output path for the HTML report.",
         ),
     ] = Path("llmdr-report.html"),
     last: Annotated[
         Optional[int],
         typer.Option(
-            "--last", "-n",
+            "--last",
+            "-n",
             min=1,
             help="Limit to the most recent N records. Default: all records.",
         ),
@@ -545,7 +540,8 @@ def report(
     conversation_id: Annotated[
         Optional[str],
         typer.Option(
-            "--conversation-id", "-c",
+            "--conversation-id",
+            "-c",
             help="Filter to a single conversation id.",
         ),
     ] = None,
@@ -639,10 +635,7 @@ def report(
         raise typer.Exit(code=EXIT_USAGE)
 
     typer.echo(f"report written to {out} ({output.record_count} record(s))")
-    typer.echo(
-        "chain status: "
-        + ("intact" if output.verify.ok else "BROKEN, see report")
-    )
+    typer.echo("chain status: " + ("intact" if output.verify.ok else "BROKEN, see report"))
     if include_content:
         access_id = _last_access_log_id(config.db_path)
         typer.echo(
@@ -758,8 +751,7 @@ def import_cmd(
     conversations = _normalize_conversations(parsed)
     if conversations is None:
         typer.echo(
-            f"{path} top-level must be a conversation object or array of "
-            f"conversations.",
+            f"{path} top-level must be a conversation object or array of " f"conversations.",
             err=True,
         )
         raise typer.Exit(code=EXIT_USAGE)
@@ -818,8 +810,7 @@ def import_cmd(
         raise typer.Exit(code=EXIT_USAGE)
 
     typer.echo(
-        f"imported {written} message(s) across {len(plan)} conversation(s) "
-        f"from {source_file}"
+        f"imported {written} message(s) across {len(plan)} conversation(s) " f"from {source_file}"
     )
 
 
@@ -845,14 +836,11 @@ def _validate_import_plan(
     for conv_idx, conv in enumerate(conversations):
         conv_uuid = conv.get("uuid")
         if not isinstance(conv_uuid, str) or not conv_uuid:
-            raise _ImportValidationError(
-                f"conversation #{conv_idx}: missing or invalid 'uuid'"
-            )
+            raise _ImportValidationError(f"conversation #{conv_idx}: missing or invalid 'uuid'")
         chat_messages = conv.get("chat_messages")
         if not isinstance(chat_messages, list):
             raise _ImportValidationError(
-                f"conversation {conv_uuid!r}: missing or invalid "
-                f"'chat_messages' array"
+                f"conversation {conv_uuid!r}: missing or invalid " f"'chat_messages' array"
             )
 
         validated: list[_ImportedMessage] = []
@@ -867,8 +855,7 @@ def _validate_import_plan(
             created_at = msg.get("created_at")
             if not isinstance(msg_uuid, str) or not msg_uuid:
                 raise _ImportValidationError(
-                    f"conversation {conv_uuid!r} message #{msg_idx}: "
-                    f"missing or invalid 'uuid'"
+                    f"conversation {conv_uuid!r} message #{msg_idx}: " f"missing or invalid 'uuid'"
                 )
             # Empty text is allowed (a sent-but-empty message); other
             # required fields must be non-empty strings.
@@ -904,9 +891,7 @@ def _validate_import_plan(
                     created_at=created_at,
                 )
             )
-        plan.append(
-            _ImportedConversation(uuid=conv_uuid, messages=validated)
-        )
+        plan.append(_ImportedConversation(uuid=conv_uuid, messages=validated))
     return plan
 
 
