@@ -37,16 +37,16 @@ import sys
 import tempfile
 from pathlib import Path
 
+# Act 5 must produce a genuinely valid row_hash for the tampered row, so it
+# reuses audit.py's real hashing primitives rather than reimplementing them.
+# The underscore-prefixed names are module-private; importing them couples the
+# demo to audit internals, but it guarantees the recomputed hash is identical
+# to what verify_chain computes (same code path), and any refactor breaks this
+# import loudly instead of silently producing a wrong hash.
 from llmdr.audit import (
+    _AUDIT_HASH_COLUMNS,
     AuditStore,
     VerifyResult,
-    # Act 5 must produce a genuinely valid row_hash for the tampered row, so it
-    # reuses audit.py's real hashing primitives rather than reimplementing them.
-    # These names are module-private; importing them couples the demo to audit
-    # internals, but it guarantees the recomputed hash is identical to what
-    # verify_chain computes (same code path), and any refactor breaks this
-    # import loudly instead of silently producing a wrong hash.
-    _AUDIT_HASH_COLUMNS,
     _canonical_json,
     _sha256_hex,
 )
