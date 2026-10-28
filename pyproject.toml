@@ -1,6 +1,6 @@
 [project]
 name = "llmdr"
-version = "0.0.1"
+version = "0.1.0"
 description = "LLM Detection and Response, tamper-evident audit trails for LLM traffic"
 readme = "README.md"
 requires-python = ">=3.10"
